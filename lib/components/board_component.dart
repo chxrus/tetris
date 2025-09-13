@@ -37,9 +37,12 @@ class BoardComponent extends PositionComponent {
   @override
   void onGameResize(Vector2 gameSize) {
     super.onGameResize(gameSize);
-    final maxCellWidth  = (gameSize.x - padding * 2) / model.cols;
+    final maxCellWidth = (gameSize.x - padding * 2) / model.cols;
     final maxCellHeight = (gameSize.y - padding * 2) / model.rows;
-    cell = math.min(maxCellWidth, maxCellHeight).floorToDouble().clamp(1.0, double.infinity);
+    cell = math
+        .min(maxCellWidth, maxCellHeight)
+        .floorToDouble()
+        .clamp(1.0, double.infinity);
     size.setValues(model.cols * cell, model.rows * cell);
     position = gameSize / 2;
   }
@@ -60,11 +63,19 @@ class BoardComponent extends PositionComponent {
     final halfGrid = gridPaint.strokeWidth / 2;
     for (var c = 1; c < model.cols; c++) {
       final x = c * cell + halfGrid;
-      canvas.drawLine(Offset(x, halfGrid), Offset(x, size.y - halfGrid), gridPaint);
+      canvas.drawLine(
+        Offset(x, halfGrid),
+        Offset(x, size.y - halfGrid),
+        gridPaint,
+      );
     }
     for (var r = 1; r < model.rows; r++) {
       final y = r * cell + halfGrid;
-      canvas.drawLine(Offset(halfGrid, y), Offset(size.x - halfGrid, y), gridPaint);
+      canvas.drawLine(
+        Offset(halfGrid, y),
+        Offset(size.x - halfGrid, y),
+        gridPaint,
+      );
     }
 
     for (var y = 0; y < model.rows; y++) {
@@ -81,12 +92,16 @@ class BoardComponent extends PositionComponent {
       }
     }
 
-    final activeRect = Rect.fromLTWH(
-      halfBorder + model.activeX * cell + 2,
-      halfBorder + model.activeY * cell + 2,
-      cell - 4,
-      cell - 4,
-    );
-    canvas.drawRect(activeRect, piecePaint);
+    if (model.active != null && !model.isGameOver) {
+      for (final c in model.active!.blocksAbsolute()) {
+        final rect = Rect.fromLTWH(
+          halfBorder + c.x * cell + 2,
+          halfBorder + c.y * cell + 2,
+          cell - 4,
+          cell - 4,
+        );
+        canvas.drawRect(rect, piecePaint);
+      }
+    }
   }
 }

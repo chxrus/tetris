@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tetris/components/board_component.dart';
 import 'package:tetris/model/board_model.dart';
+import 'package:tetris/utils/set_extension.dart';
 
 class TetrisGame extends FlameGame with KeyboardEvents {
   late final BoardModel model;
   late final BoardComponent boardComponent;
-  
+
   final double baseFall = 0.6;
+  final double softDropFactor = 4.0;
   final double lockDelaySeconds = 0.5;
 
   bool softDrop = false;
@@ -26,19 +28,17 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     boardComponent = BoardComponent(model: model);
     await add(boardComponent);
 
-    fallTimer = Timer(
-      baseFall,
-      onTick: () => _handleFallTick(),
-      repeat: true,
-    )..start();
+    fallTimer = Timer(baseFall, onTick: () => _handleFallTick(), repeat: true)
+      ..start();
 
     lockTimer = Timer(
-      lockDelaySeconds, 
+      lockDelaySeconds,
       onTick: () {
-      if (!model.canMoveDown() && !model.isGameOver) {
-        model.hardDropAndLock();
-      }
-    });
+        if (!model.canMoveDown() && !model.isGameOver) {
+          model.hardDropAndLock();
+        }
+      },
+    );
   }
 
   void _handleFallTick() {
@@ -57,45 +57,84 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   @override
   void update(double dt) {
     super.update(dt);
-    fallTimer.limit = softDrop ? baseFall / 10 : baseFall;
+    fallTimer.limit = softDrop ? (baseFall / softDropFactor) : baseFall;
     fallTimer.update(dt);
     lockTimer.update(dt);
   }
 
   @override
-  KeyEventResult onKeyEvent(KeyEvent event, Set<LogicalKeyboardKey> keysPressed) {
-    softDrop = keysPressed.contains(LogicalKeyboardKey.arrowDown);
+  KeyEventResult onKeyEvent(
+    KeyEvent event,
+    Set<LogicalKeyboardKey> keysPressed,
+  ) {
+    if (model.isGameOver) {
+      return KeyEventResult.ignored;
+    }
 
-    final isDown = event is KeyDownEvent;
-    if (!isDown || model.isGameOver) return KeyEventResult.ignored;
-
-    bool isKey(LogicalKeyboardKey l, PhysicalKeyboardKey p) =>
+    bool hit(LogicalKeyboardKey l, PhysicalKeyboardKey p) =>
         event.logicalKey == l || event.physicalKey == p;
 
-    if (isKey(LogicalKeyboardKey.keyA, PhysicalKeyboardKey.keyA) ||
-        event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      model.tryShiftHorizontal(-1);
-      return KeyEventResult.handled;
+    final softNow = keysPressed.containsAny([
+      LogicalKeyboardKey.keyS,
+      LogicalKeyboardKey.arrowDown,
+    ]);
+    if (softNow != softDrop) _setSoftDrop(softNow);
+
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+          hit(LogicalKeyboardKey.keyS, PhysicalKeyboardKey.keyS)) {
+        return KeyEventResult.handled;
+      }
+
+      if (hit(LogicalKeyboardKey.keyA, PhysicalKeyboardKey.keyA) ||
+          event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        if (model.moveActive(-1, 0) && !model.isGrounded()) {
+          lockTimer.stop();
+        }
+        return KeyEventResult.handled;
+      }
+
+      if (hit(LogicalKeyboardKey.keyD, PhysicalKeyboardKey.keyD) ||
+          event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (model.moveActive(1, 0) && !model.isGrounded()) {
+          lockTimer.stop();
+        }
+        return KeyEventResult.handled;
+      }
+
+      if (hit(LogicalKeyboardKey.keyQ, PhysicalKeyboardKey.keyQ)) {
+        if (model.rotateActiveCounterclockwise() && !model.isGrounded()) {
+          lockTimer.stop();
+        }
+        return KeyEventResult.handled;
+      }
+
+      if (hit(LogicalKeyboardKey.keyE, PhysicalKeyboardKey.keyE) ||
+          event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        if (model.rotateActiveClockwise() && !model.isGrounded()) {
+          lockTimer.stop();
+        }
+        return KeyEventResult.handled;
+      }
     }
-    if (isKey(LogicalKeyboardKey.keyD, PhysicalKeyboardKey.keyD) ||
-        event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      model.tryShiftHorizontal(1);
-      return KeyEventResult.handled;
-    }
-    if (isKey(LogicalKeyboardKey.keyQ, PhysicalKeyboardKey.keyQ)) {
-      model.rotateCounterclockwise();
-      return KeyEventResult.handled;
-    }
-    if (isKey(LogicalKeyboardKey.keyE, PhysicalKeyboardKey.keyE) ||
-        event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      model.rotateClockwise();
-      return KeyEventResult.handled;
-    }
+
     if (event.logicalKey == LogicalKeyboardKey.space) {
       model.hardDropAndLock();
+      lockTimer.stop();
       return KeyEventResult.handled;
     }
+
+    if (softDrop) {
+      return KeyEventResult.handled;
+    }
+
     return KeyEventResult.ignored;
+  }
+
+  void _setSoftDrop(bool enabled) {
+    if (softDrop == enabled) return;
+    softDrop = enabled;
+    fallTimer.reset();
   }
 
   @override
