@@ -1,14 +1,20 @@
-import 'dart:math';
-
+import 'dart:math' as math;
 import 'package:tetris/model/tetromino.dart';
 
 class BoardModel {
   final int rows;
   final int cols;
 
+  int score = 0;
+  int lines = 0;
+  int level = 1;
+
   late final List<List<int>> cells;
 
-  final _rng = Random();
+  // очки за 1-4 линии (Guideline * множитель уровня)
+  static const List<int> _lineScores = [0, 100, 300, 500, 800];
+
+  final _rng = math.Random();
   Tetromino? active;
   bool isGameOver = false;
 
@@ -18,7 +24,8 @@ class BoardModel {
   }
 
   void _spawnNew() {
-    final type = TetrominoType.values[_rng.nextInt(TetrominoType.values.length)];
+    final type =
+        TetrominoType.values[_rng.nextInt(TetrominoType.values.length)];
     final tetromino = Tetromino(type: type, originX: cols ~/ 2, originY: 0);
     if (_canPlace(tetromino)) {
       active = tetromino;
@@ -54,7 +61,7 @@ class BoardModel {
   }
 
   bool isGrounded() => active != null && !canMoveActive(0, 1);
-  bool rotateActiveClockwise()  => _rotateActive(1);
+  bool rotateActiveClockwise() => _rotateActive(1);
   bool rotateActiveCounterclockwise() => _rotateActive(-1);
 
   bool _rotateActive(int dir) {
@@ -78,19 +85,19 @@ class BoardModel {
     return false;
   }
 
-bool canMoveActive(int dx, int dy) {
-  if (active == null) return false;
-  final t = Tetromino(
-    type: active!.type,
-    originX: active!.originX + dx,
-    originY: active!.originY + dy,
-    rotationIndex: active!.rotationIndex,
-  );
-  return _canPlace(t);
-}
+  bool canMoveActive(int dx, int dy) {
+    if (active == null) return false;
+    final t = Tetromino(
+      type: active!.type,
+      originX: active!.originX + dx,
+      originY: active!.originY + dy,
+      rotationIndex: active!.rotationIndex,
+    );
+    return _canPlace(t);
+  }
 
-bool canMoveDown() => active != null && canMoveActive(0, 1);
-bool fallOneCell() => active != null && moveActive(0, 1);
+  bool canMoveDown() => active != null && canMoveActive(0, 1);
+  bool fallOneCell() => active != null && moveActive(0, 1);
 
   void hardDropAndLock() {
     if (active == null) return;
@@ -105,11 +112,12 @@ bool fallOneCell() => active != null && moveActive(0, 1);
     for (final c in active!.blocksAbsolute()) {
       if (_inside(c.x, c.y)) cells[c.y][c.x] = 1;
     }
-    _clearFullLines();
+    final cleared = _clearFullLines();
+    _applyScoring(cleared);
     _spawnNew();
   }
 
-  void _clearFullLines() {
+  int _clearFullLines() {
     final newRows = <List<int>>[];
     int cleared = 0;
     for (var y = 0; y < rows; y++) {
@@ -126,5 +134,20 @@ bool fallOneCell() => active != null && moveActive(0, 1);
     for (var y = 0; y < rows; y++) {
       cells[y] = newRows[y];
     }
+    return cleared;
+  }
+
+  void _applyScoring(int cleared) {
+    if (cleared <= 0) return;
+    score += _lineScores[cleared] * level;
+    lines += cleared;
+    final newLevel = (lines ~/ 10) + 1;
+    if (newLevel > level) {
+      level = newLevel;
+    }
+  }
+
+  double fallPeriodForLevel(double baseFall) {
+    return baseFall * math.pow(0.92, (level - 1)).toDouble();
   }
 }
