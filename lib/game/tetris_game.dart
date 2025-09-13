@@ -9,9 +9,11 @@ import 'package:tetris/model/board_model.dart';
 import 'package:tetris/utils/set_extension.dart';
 
 class TetrisGame extends FlameGame with KeyboardEvents {
+  static const String pauseOverlayId = 'PauseOverlay';
+
   late final HudComponent hud;
-  late final BoardModel model;
-  late final BoardComponent boardComponent;
+  late BoardModel model;
+  late BoardComponent boardComponent;
 
   final double baseFall = 0.6;
   final double softDropFactor = 4.0;
@@ -93,6 +95,15 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     KeyEvent event,
     Set<LogicalKeyboardKey> keysPressed,
   ) {
+    if (event is KeyDownEvent &&
+        (event.logicalKey == LogicalKeyboardKey.escape ||
+            event.logicalKey == LogicalKeyboardKey.keyP)) {
+      togglePause();
+      return KeyEventResult.handled;
+    }
+
+    if (paused) return KeyEventResult.handled;
+
     if (model.isGameOver) {
       return KeyEventResult.ignored;
     }
@@ -155,6 +166,51 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     }
 
     return KeyEventResult.ignored;
+  }
+
+  void pauseGame() {
+    if (paused) return;
+    pauseEngine();
+    overlays.add(pauseOverlayId);
+  }
+
+  void resumeGame() {
+    if (!paused) return;
+    overlays.remove(pauseOverlayId);
+    resumeEngine();
+  }
+
+  void togglePause() => paused ? resumeGame() : pauseGame();
+
+  Future<void> restartGame() async {
+    final currentTopInset = boardComponent.topInset;
+    final currentSideInset = boardComponent.sideInset;
+    final currentBottomInset = boardComponent.bottomInset;
+
+    boardComponent.removeFromParent();
+
+    model = BoardModel(rows: 20, cols: 10);
+
+    final newBoard = BoardComponent(
+      model: model,
+      topInset: currentTopInset,
+      sideInset: currentSideInset,
+      bottomInset: currentBottomInset,
+    );
+    boardComponent = newBoard;
+    await world.add(newBoard);
+
+    softDrop = false;
+    final period = model.fallPeriodForLevel(baseFall);
+    fallTimer.limit = period;
+    fallTimer.reset();
+    lockTimer.stop();
+
+    hud.setSoftDrop(false);
+    hud.setScoreLinesLevel(score: 0, lines: 0, level: 1);
+    hud.requestRelayout();
+
+    if (paused) resumeGame();
   }
 
   void _setSoftDrop(bool enabled) {
