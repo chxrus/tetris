@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:tetris/components/board_component.dart';
 import 'package:tetris/components/hud_component.dart';
+import 'package:tetris/game/timing.dart';
 import 'package:tetris/model/board_model.dart';
 import 'package:tetris/utils/set_extension.dart';
 
@@ -18,14 +19,15 @@ class TetrisGame extends FlameGame with KeyboardEvents {
 
   bool _gameOverShown = false;
 
-  final double baseFall = 0.6;
-  final double softDropFactor = 4.0;
-  final double lockDelaySeconds = 0.5;
-
+  int horizontalDirection = 0;
   bool softDrop = false;
+
+  final Timing timing = Timing.defaults;
 
   late final Timer fallTimer;
   late final Timer lockTimer;
+  late final Timer delayedAutoShiftTimer;
+  late final Timer autoRepeatTimer;
 
   @override
   Future<void> onLoad() async {
@@ -43,16 +45,41 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     );
     await camera.viewport.add(hud);
 
-    fallTimer = Timer(baseFall, onTick: () => _handleFallTick(), repeat: true)
+    fallTimer = Timer(secs(timing.baseFall), onTick: _handleFallTick, repeat: true)
       ..start();
 
     lockTimer = Timer(
-      lockDelaySeconds,
+      secs(timing.lockDelay),
       onTick: () {
         if (!model.canMoveDown() && !model.isGameOver) {
           model.hardDropAndLock();
         }
       },
+    );
+
+    delayedAutoShiftTimer = Timer(
+      secs(timing.delayedAutoShift),
+      onTick: () {
+        if (horizontalDirection != 0) {
+          autoRepeatTimer.start();
+        }
+      },
+      repeat: false,
+    );
+
+    autoRepeatTimer = Timer(
+      secs(timing.autoRepeatRate),
+      onTick: () {
+        if (horizontalDirection == 0) {
+          autoRepeatTimer.stop();
+          return;
+        }
+        final moved = model.moveActive(horizontalDirection, 0);
+        if (moved && !model.isGrounded()) {
+          lockTimer.stop();
+        }
+      },
+      repeat: true,
     );
   }
 
@@ -78,18 +105,22 @@ class TetrisGame extends FlameGame with KeyboardEvents {
       return;
     }
 
-    final levelPeriod = model.fallPeriodForLevel(baseFall);
+    final levelPeriod = model.fallPeriodForLevel(timing.baseFall);
     final targetPeriod = softDrop
-        ? (levelPeriod / softDropFactor)
+        ? div(levelPeriod, timing.softDropFactor)
         : levelPeriod;
 
-    if ((fallTimer.limit - targetPeriod).abs() > 1e-6) {
-      fallTimer.limit = targetPeriod;
-      fallTimer.reset();
+    final targetSecs = secs(targetPeriod);
+    if ((fallTimer.limit - targetSecs).abs() > 1e-6) {
+      fallTimer
+        ..limit = targetSecs
+        ..reset();
     }
 
     fallTimer.update(dt);
     lockTimer.update(dt);
+    delayedAutoShiftTimer.update(dt);
+    autoRepeatTimer.update(dt);
 
     hud.setSoftDrop(softDrop);
     hud.setScoreLinesLevel(
@@ -126,6 +157,33 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     ]);
     if (softNow != softDrop) _setSoftDrop(softNow);
 
+    if (event is KeyUpEvent) {
+      final leftHeldNow =
+          keysPressed.contains(LogicalKeyboardKey.arrowLeft) ||
+          keysPressed.contains(LogicalKeyboardKey.keyA);
+      final rightHeldNow =
+          keysPressed.contains(LogicalKeyboardKey.arrowRight) ||
+          keysPressed.contains(LogicalKeyboardKey.keyD);
+
+      if (!leftHeldNow && !rightHeldNow) {
+        _stopHorizontalRepeat();
+        return KeyEventResult.handled;
+      }
+
+      if (leftHeldNow && !rightHeldNow) {
+        _stepOnceHorizontally(-1);
+        _beginHorizontalRepeat(-1);
+        return KeyEventResult.handled;
+      }
+      if (rightHeldNow && !leftHeldNow) {
+        _stepOnceHorizontally(1);
+        _beginHorizontalRepeat(1);
+        return KeyEventResult.handled;
+      }
+
+      return KeyEventResult.ignored;
+    }
+
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
           hit(LogicalKeyboardKey.keyS, PhysicalKeyboardKey.keyS)) {
@@ -134,17 +192,15 @@ class TetrisGame extends FlameGame with KeyboardEvents {
 
       if (hit(LogicalKeyboardKey.keyA, PhysicalKeyboardKey.keyA) ||
           event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        if (model.moveActive(-1, 0) && !model.isGrounded()) {
-          lockTimer.stop();
-        }
+        _stepOnceHorizontally(-1);
+        _beginHorizontalRepeat(-1);
         return KeyEventResult.handled;
       }
 
       if (hit(LogicalKeyboardKey.keyD, PhysicalKeyboardKey.keyD) ||
           event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        if (model.moveActive(1, 0) && !model.isGrounded()) {
-          lockTimer.stop();
-        }
+        _stepOnceHorizontally(1);
+        _beginHorizontalRepeat(1);
         return KeyEventResult.handled;
       }
 
@@ -171,6 +227,15 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     }
 
     if (softDrop) {
+      return KeyEventResult.handled;
+    }
+
+    if (keysPressed.containsAny([
+      LogicalKeyboardKey.keyA,
+      LogicalKeyboardKey.keyD,
+      LogicalKeyboardKey.arrowLeft,
+      LogicalKeyboardKey.arrowRight,
+    ])) {
       return KeyEventResult.handled;
     }
 
@@ -212,9 +277,9 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     await world.add(newBoard);
 
     softDrop = false;
-    final period = model.fallPeriodForLevel(baseFall);
+    final period = model.fallPeriodForLevel(timing.baseFall);
     fallTimer
-      ..limit = period
+      ..limit = secs(period)
       ..reset()
       ..start();
 
@@ -248,6 +313,30 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     overlays.add(gameOverOverlayId);
     _gameOverShown = true;
   }
+
+  void _beginHorizontalRepeat(int dir) {
+    horizontalDirection = dir;
+    autoRepeatTimer.stop();
+    delayedAutoShiftTimer.stop();
+    delayedAutoShiftTimer.start();
+  }
+
+  void _stopHorizontalRepeat() {
+    horizontalDirection = 0;
+    delayedAutoShiftTimer.stop();
+    autoRepeatTimer.stop();
+  }
+
+  void _stepOnceHorizontally(int dir) {
+    final moved = model.moveActive(dir, 0);
+    if (moved && !model.isGrounded()) {
+      lockTimer.stop();
+    }
+  }
+
+  double secs(Duration d) => d.inMicroseconds / 1e6;
+  Duration div(Duration d, double k) =>
+      Duration(microseconds: (d.inMicroseconds / k).round());
 
   @override
   Color backgroundColor() => Colors.white;

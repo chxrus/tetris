@@ -151,7 +151,10 @@ class BoardModel {
     }
   }
 
-  double fallPeriodForLevel(double baseFall) {
-    return baseFall * math.pow(0.92, (level - 1)).toDouble();
+  Duration fallPeriodForLevel(Duration baseFall) {
+    const decayPerLevel = 0.92;
+    final factor = math.pow(decayPerLevel, (level - 1)).toDouble();
+    final micros = (baseFall.inMicroseconds * factor).round();
+    return Duration(microseconds: micros);
   }
 }
