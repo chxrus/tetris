@@ -10,10 +10,13 @@ import 'package:tetris/utils/set_extension.dart';
 
 class TetrisGame extends FlameGame with KeyboardEvents {
   static const String pauseOverlayId = 'PauseOverlay';
+  static const String gameOverOverlayId = 'GameOverOverlay';
 
   late final HudComponent hud;
   late BoardModel model;
   late BoardComponent boardComponent;
+
+  bool _gameOverShown = false;
 
   final double baseFall = 0.6;
   final double softDropFactor = 4.0;
@@ -69,6 +72,12 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   @override
   void update(double dt) {
     super.update(dt);
+
+    if (model.isGameOver && !_gameOverShown) {
+      _showGameOver();
+      return;
+    }
+
     final levelPeriod = model.fallPeriodForLevel(baseFall);
     final targetPeriod = softDrop
         ? (levelPeriod / softDropFactor)
@@ -169,12 +178,14 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   }
 
   void pauseGame() {
+    if (_gameOverShown) return;
     if (paused) return;
     pauseEngine();
     overlays.add(pauseOverlayId);
   }
 
   void resumeGame() {
+    if (_gameOverShown) return;
     if (!paused) return;
     overlays.remove(pauseOverlayId);
     resumeEngine();
@@ -202,21 +213,40 @@ class TetrisGame extends FlameGame with KeyboardEvents {
 
     softDrop = false;
     final period = model.fallPeriodForLevel(baseFall);
-    fallTimer.limit = period;
-    fallTimer.reset();
+    fallTimer
+      ..limit = period
+      ..reset()
+      ..start();
+
     lockTimer.stop();
 
     hud.setSoftDrop(false);
     hud.setScoreLinesLevel(score: 0, lines: 0, level: 1);
     hud.requestRelayout();
 
+    overlays.remove(gameOverOverlayId);
+    _gameOverShown = false;
+
     if (paused) resumeGame();
+    if (!paused) resumeEngine();
   }
 
   void _setSoftDrop(bool enabled) {
     if (softDrop == enabled) return;
     softDrop = enabled;
     fallTimer.reset();
+  }
+
+  void _showGameOver() {
+    if (_gameOverShown) return;
+
+    fallTimer.stop();
+    lockTimer.stop();
+
+    pauseEngine();
+
+    overlays.add(gameOverOverlayId);
+    _gameOverShown = true;
   }
 
   @override

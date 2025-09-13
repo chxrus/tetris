@@ -2,6 +2,7 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/widgets.dart';
 import 'package:tetris/game/tetris_game.dart';
+import 'package:tetris/widgets/game_over_overlay.dart';
 import 'package:tetris/widgets/pause_overlay.dart';
 
 void main() {
@@ -20,6 +21,8 @@ void main() {
       overlayBuilderMap: {
         TetrisGame.pauseOverlayId: (context, game) =>
             PauseOverlay(game: game as TetrisGame),
+        TetrisGame.gameOverOverlayId: (context, game) =>
+            GameOverOverlay(game: game as TetrisGame),
       },
     ),
   );
