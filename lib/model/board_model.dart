@@ -14,6 +14,16 @@ class BoardModel {
   // очки за 1-4 линии (Guideline * множитель уровня)
   static const List<int> _lineScores = [0, 100, 300, 500, 800];
 
+  static const Map<TetrominoType, int> _typeColor = {
+    TetrominoType.I: 0xFF00BCD4, // cyan
+    TetrominoType.J: 0xFF1E88E5, // blue
+    TetrominoType.L: 0xFFF57C00, // orange
+    TetrominoType.O: 0xFFFBC02D, // yellow
+    TetrominoType.S: 0xFF43A047, // green
+    TetrominoType.T: 0xFF8E24AA, // purple
+    TetrominoType.Z: 0xFFE53935, // red
+  };
+
   final _rng = math.Random();
   Tetromino? active;
   bool isGameOver = false;
@@ -26,7 +36,14 @@ class BoardModel {
   void _spawnNew() {
     final type =
         TetrominoType.values[_rng.nextInt(TetrominoType.values.length)];
-    final tetromino = Tetromino(type: type, originX: cols ~/ 2, originY: 0);
+    final colorValue = _typeColor[type]!;
+    final tetromino = Tetromino(
+      type: type,
+      originX: cols ~/ 2,
+      originY: 0,
+      rotationIndex: 0,
+      colorValue: colorValue,
+    );
     if (_canPlace(tetromino)) {
       active = tetromino;
     } else {
@@ -47,14 +64,9 @@ class BoardModel {
 
   bool moveActive(int dx, int dy) {
     if (active == null) return false;
-    final t = Tetromino(
-      type: active!.type,
-      originX: active!.originX + dx,
-      originY: active!.originY + dy,
-      rotationIndex: active!.rotationIndex,
-    );
-    if (_canPlace(t)) {
-      active = t;
+    final candidate = active!.shift(dx, dy);
+    if (_canPlace(candidate)) {
+      active = candidate;
       return true;
     }
     return false;
@@ -68,17 +80,14 @@ class BoardModel {
     if (active == null) return false;
     final nextRotation = (active!.rotationIndex + (dir > 0 ? 1 : 3)) & 3;
 
-    // простые "кики" у стены — пробуем сдвинуться по X
     const kicks = [0, 1, -1, 2, -2];
     for (final dx in kicks) {
-      final t = Tetromino(
-        type: active!.type,
-        originX: active!.originX + dx,
-        originY: active!.originY,
-        rotationIndex: nextRotation,
-      );
-      if (_canPlace(t)) {
-        active = t;
+      final candidate = active!
+          .copyWith(rotationIndex: nextRotation)
+          .shift(dx, 0);
+
+      if (_canPlace(candidate)) {
+        active = candidate;
         return true;
       }
     }
@@ -87,13 +96,8 @@ class BoardModel {
 
   bool canMoveActive(int dx, int dy) {
     if (active == null) return false;
-    final t = Tetromino(
-      type: active!.type,
-      originX: active!.originX + dx,
-      originY: active!.originY + dy,
-      rotationIndex: active!.rotationIndex,
-    );
-    return _canPlace(t);
+    final candidate = active!.shift(dx, dy);
+    return _canPlace(candidate);
   }
 
   bool canMoveDown() => active != null && canMoveActive(0, 1);
@@ -110,7 +114,7 @@ class BoardModel {
   void _lockAtCurrentAndSpawn() {
     if (active == null) return;
     for (final c in active!.blocksAbsolute()) {
-      if (_inside(c.x, c.y)) cells[c.y][c.x] = 1;
+      if (_inside(c.x, c.y)) cells[c.y][c.x] = active!.colorValue;
     }
     final cleared = _clearFullLines();
     _applyScoring(cleared);

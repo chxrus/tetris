@@ -10,6 +10,7 @@ class BoardComponent extends PositionComponent
   static const cols = 10;
 
   final BoardModel model;
+  final Map<int, Paint> _paintCache = {};
 
   double topInset;
   double sideInset;
@@ -69,9 +70,14 @@ class BoardComponent extends PositionComponent
     ..style = PaintingStyle.fill
     ..color = const Color(0xFF42A5F5);
 
-  final stackPaint = Paint()
-    ..style = PaintingStyle.fill
-    ..color = const Color(0xFF212121);
+  Paint _paintFor(int colorValue) {
+    return _paintCache.putIfAbsent(
+      colorValue,
+      () => Paint()
+        ..style = PaintingStyle.fill
+        ..color = Color(colorValue),
+    );
+  }
 
   @override
   void render(Canvas canvas) {
@@ -107,13 +113,14 @@ class BoardComponent extends PositionComponent
     for (var y = 0; y < model.rows; y++) {
       for (var x = 0; x < model.cols; x++) {
         if (model.cells[y][x] != 0) {
+          final colorValue = model.cells[y][x];
           final cellRect = Rect.fromLTWH(
             halfBorder + x * cell + 1,
             halfBorder + y * cell + 1,
             cell - 2,
             cell - 2,
           );
-          canvas.drawRect(cellRect, stackPaint);
+          canvas.drawRect(cellRect, _paintFor(colorValue));
         }
       }
     }
