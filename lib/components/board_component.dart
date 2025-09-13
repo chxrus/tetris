@@ -1,18 +1,62 @@
 import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flame/components.dart';
+import 'package:tetris/game/tetris_game.dart';
 import 'package:tetris/model/board_model.dart';
 
-class BoardComponent extends PositionComponent {
-  static const double padding = 32;
+class BoardComponent extends PositionComponent
+    with HasGameReference<TetrisGame> {
+  static const rows = 20;
+  static const cols = 10;
 
   final BoardModel model;
 
-  BoardComponent({required this.model}) {
-    anchor = Anchor.center;
-  }
+  double topInset;
+  double sideInset;
+  double bottomInset;
 
   double cell = 24.0;
+
+  BoardComponent({
+    required this.model,
+    this.topInset = 72,
+    this.sideInset = 16,
+    this.bottomInset = 16,
+  }) {
+    anchor = Anchor.topLeft;
+    priority = 0;
+  }
+
+  @override
+  Future<void> onLoad() async {
+    super.onLoad();
+    _relayout();
+  }
+
+  @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _relayout();
+  }
+
+  void _relayout() {
+    final viewportSize = game.camera.viewport.size;
+
+    final contentW = viewportSize.x - sideInset * 2;
+    final contentH = viewportSize.y - topInset - bottomInset;
+
+    cell = math
+        .min(contentW / model.cols, contentH / model.rows)
+        .floorToDouble()
+        .clamp(1.0, double.infinity);
+
+    size.setValues(model.cols * cell, model.rows * cell);
+
+    final offsetX = (viewportSize.x - size.x) / 2;
+    final offsetY = topInset + (contentH - size.y) / 2;
+
+    position.setValues(offsetX, offsetY);
+  }
 
   final gridPaint = Paint()
     ..style = PaintingStyle.stroke
@@ -28,24 +72,6 @@ class BoardComponent extends PositionComponent {
   final stackPaint = Paint()
     ..style = PaintingStyle.fill
     ..color = const Color(0xFF212121);
-
-  @override
-  Future<void> onLoad() async {
-    size = Vector2(model.cols * cell, model.rows * cell);
-  }
-
-  @override
-  void onGameResize(Vector2 gameSize) {
-    super.onGameResize(gameSize);
-    final maxCellWidth = (gameSize.x - padding * 2) / model.cols;
-    final maxCellHeight = (gameSize.y - padding * 2) / model.rows;
-    cell = math
-        .min(maxCellWidth, maxCellHeight)
-        .floorToDouble()
-        .clamp(1.0, double.infinity);
-    size.setValues(model.cols * cell, model.rows * cell);
-    position = gameSize / 2;
-  }
 
   @override
   void render(Canvas canvas) {

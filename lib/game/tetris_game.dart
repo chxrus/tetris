@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -10,6 +11,10 @@ import 'package:tetris/utils/set_extension.dart';
 class TetrisGame extends FlameGame with KeyboardEvents {
   late final BoardModel model;
   late final BoardComponent boardComponent;
+
+  TextComponent? hudTitle;
+  TextComponent? hudHint;
+  TextComponent? hudSoft;
 
   final double baseFall = 0.6;
   final double softDropFactor = 4.0;
@@ -24,9 +29,49 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   Future<void> onLoad() async {
     await super.onLoad();
 
+    final text18 = TextPaint(
+      style: const TextStyle(
+        color: Color(0xFF111111),
+        fontSize: 32,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    final text12 = TextPaint(
+      style: const TextStyle(
+        color: Color(0xFF111111),
+        fontSize: 20,
+        fontWeight: FontWeight.w400,
+      ),
+    );
+
+    hudTitle = TextComponent(text: 'TETRIS', textRenderer: text18)
+      ..position = Vector2(12, 12)
+      ..priority = 1000;
+
+    hudHint =
+        TextComponent(
+            text: '←/→/A/D move   Q/E/↑ rotate   [Space] drop',
+            textRenderer: text12,
+          )
+          ..position = Vector2(12, 48)
+          ..priority = 1000;
+
+    hudSoft = TextComponent(text: 'Soft: off', textRenderer: text12)
+      ..position = Vector2(12, 72)
+      ..priority = 1000;
+
+    await camera.viewport.addAll([hudTitle!, hudHint!, hudSoft!]);
+
+      final hudBottom = [
+        hudTitle!.position.y + hudTitle!.size.y,
+        hudHint!.position.y + hudHint!.size.y,
+        hudSoft!.position.y + hudSoft!.size.y,
+      ].reduce(math.max);
+    final topInset = hudBottom + 12;
+
     model = BoardModel(rows: 20, cols: 10);
-    boardComponent = BoardComponent(model: model);
-    await add(boardComponent);
+    boardComponent = BoardComponent(model: model, topInset: topInset);
+    await world.add(boardComponent);
 
     fallTimer = Timer(baseFall, onTick: () => _handleFallTick(), repeat: true)
       ..start();
@@ -60,6 +105,7 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     fallTimer.limit = softDrop ? (baseFall / softDropFactor) : baseFall;
     fallTimer.update(dt);
     lockTimer.update(dt);
+    hudSoft!.text = 'Soft: ${softDrop ? 'on' : 'off'}';
   }
 
   @override
