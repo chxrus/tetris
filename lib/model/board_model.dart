@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:tetris/model/tetromino.dart';
+import 'package:tetris/model/rotation/kicks.dart' as kicks;
 
 class BoardModel {
   final int rows;
@@ -78,14 +79,13 @@ class BoardModel {
 
   bool _rotateActive(int dir) {
     if (active == null) return false;
-    final nextRotation = (active!.rotationIndex + (dir > 0 ? 1 : 3)) & 3;
 
-    const kicks = [0, 1, -1, 2, -2];
-    for (final dx in kicks) {
-      final candidate = active!
-          .copyWith(rotationIndex: nextRotation)
-          .shift(dx, 0);
+    final from = active!.rotationIndex & 3;
+    final to = (from + (dir > 0 ? 1 : 3)) & 3;
+    final rotated = active!.copyWith(rotationIndex: to);
 
+    for (final off in kicks.srsKicks(active!.type, from, to)) {
+      final candidate = rotated.shift(off.dx, off.dy);
       if (_canPlace(candidate)) {
         active = candidate;
         return true;
