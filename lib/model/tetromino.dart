@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class Cell {
   final int x, y;
   const Cell(this.x, this.y);
@@ -5,7 +7,20 @@ class Cell {
 
 enum TetrominoType { I, O, T, J, L, S, Z }
 
+@immutable
 class Tetromino {
+  static const Map<TetrominoType, int> defaultPalette = {
+    TetrominoType.I: 0xFF00BCD4, // cyan
+    TetrominoType.J: 0xFF1E88E5, // blue
+    TetrominoType.L: 0xFFF57C00, // orange
+    TetrominoType.O: 0xFFFBC02D, // yellow
+    TetrominoType.S: 0xFF43A047, // green
+    TetrominoType.T: 0xFF8E24AA, // purple
+    TetrominoType.Z: 0xFFE53935, // red
+  };
+
+  static int colorOf(TetrominoType type) => defaultPalette[type]!;
+
   final TetrominoType type;
   final int rotationIndex; // 0..3
   final int originX;
@@ -20,13 +35,13 @@ class Tetromino {
     required this.colorValue,
   });
 
-  Tetromino copyWith({int? originX, int? originY, int? rotationIndex}) {
+  Tetromino copyWith({int? originX, int? originY, int? rotationIndex, int? colorValue}) {
     return Tetromino(
       type: type,
       originX: originX ?? this.originX,
       originY: originY ?? this.originY,
       rotationIndex: rotationIndex ?? this.rotationIndex,
-      colorValue: colorValue,
+      colorValue: colorValue ?? this.colorValue,
     );
   }
 

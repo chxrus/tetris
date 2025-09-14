@@ -7,6 +7,7 @@ import 'package:tetris/components/board_component.dart';
 import 'package:tetris/components/hud_component.dart';
 import 'package:tetris/game/timing.dart';
 import 'package:tetris/model/board_model.dart';
+import 'package:tetris/model/tetromino.dart';
 import 'package:tetris/utils/set_extension.dart';
 
 class TetrisGame extends FlameGame with KeyboardEvents {
@@ -29,6 +30,8 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   late final Timer delayedAutoShiftTimer;
   late final Timer autoRepeatTimer;
 
+  TetrominoType? _cachedNext;
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
@@ -47,6 +50,8 @@ class TetrisGame extends FlameGame with KeyboardEvents {
       },
     );
     await camera.viewport.add(hud);
+
+    hud.setNextType(model.nextType);
 
     fallTimer = Timer(
       secs(timing.baseFall),
@@ -87,6 +92,9 @@ class TetrisGame extends FlameGame with KeyboardEvents {
       },
       repeat: true,
     );
+
+    _cachedNext = model.nextType;
+    hud.setNextType(_cachedNext!);
   }
 
   void _handleFallTick() {
@@ -144,6 +152,12 @@ class TetrisGame extends FlameGame with KeyboardEvents {
       lines: model.lines,
       level: model.level,
     );
+
+    final nextType = model.nextType;
+    if (nextType != _cachedNext) {
+      hud.setNextType(nextType);
+      _cachedNext = nextType;
+    }
   }
 
   @override

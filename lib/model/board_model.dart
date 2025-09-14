@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 import 'package:tetris/model/tetromino.dart';
 import 'package:tetris/model/rotation/kicks.dart' as kicks;
@@ -19,16 +20,6 @@ class BoardModel {
   // очки за 1-4 линии (Guideline * множитель уровня)
   static const List<int> _lineScores = [0, 100, 300, 500, 800];
 
-  static const Map<TetrominoType, int> _typeColor = {
-    TetrominoType.I: 0xFF00BCD4, // cyan
-    TetrominoType.J: 0xFF1E88E5, // blue
-    TetrominoType.L: 0xFFF57C00, // orange
-    TetrominoType.O: 0xFFFBC02D, // yellow
-    TetrominoType.S: 0xFF43A047, // green
-    TetrominoType.T: 0xFF8E24AA, // purple
-    TetrominoType.Z: 0xFFE53935, // red
-  };
-
   List<TetrominoType> _bag = [];
 
   void _refillBag() {
@@ -40,18 +31,32 @@ class BoardModel {
     return _bag.removeAt(0);
   }
 
+  final Queue<TetrominoType> _next = Queue<TetrominoType>();
+  void _ensureNextFilled() {
+    while (_next.isEmpty) {
+      _next.add(_drawFromBag());
+    }
+  }
+
   final _rng = math.Random();
+
+  TetrominoType get nextType => _next.first;
   Tetromino? active;
+
   bool isGameOver = false;
 
   BoardModel({required this.rows, required this.cols}) {
     cells = List.generate(rows, (_) => List.filled(cols, 0));
+    _refillBag();
+    _ensureNextFilled();
     _spawnNew();
   }
 
   void _spawnNew() {
-    final type = _drawFromBag();
-    final colorValue = _typeColor[type]!;
+    final type = _next.removeFirst();
+    _ensureNextFilled();
+    final colorValue = Tetromino.colorOf(type);
+
     final tetromino = Tetromino(
       type: type,
       originX: cols ~/ 2,

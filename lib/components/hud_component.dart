@@ -2,7 +2,9 @@ import 'dart:math' as math;
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
 import 'package:tetris/components/hud_hint_row.dart';
+import 'package:tetris/components/next_tetromino_preview.dart';
 import 'package:tetris/game/tetris_game.dart';
+import 'package:tetris/model/tetromino.dart';
 
 class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
   final void Function(double topInset, double leftInset, double rightInset)?
@@ -21,6 +23,11 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
   late final TextComponent hudLines;
   late final TextComponent hudLevel;
   late final List<HudHintRow> hintRows;
+
+  late final NextTetrominoPreview hudNext;
+  late final TextComponent hudNextLabel;
+  
+  TetrominoType? _prevNext;
 
   final TextPaint hintKeysPaint = TextPaint(
     style: const TextStyle(
@@ -46,14 +53,14 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
   final TextPaint hintPaint = TextPaint(
     style: TextStyle(
       color: Color(0xFF111111),
-      fontSize: 18,
+      fontSize: 16,
       fontWeight: FontWeight.w400,
     ),
   );
   final TextPaint valuePaint = TextPaint(
     style: const TextStyle(
       color: Color(0xFF111111),
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: FontWeight.w600,
     ),
   );
@@ -115,6 +122,14 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     hudLevel = TextComponent(text: 'Level: 1', textRenderer: valuePaint)
       ..anchor = Anchor.topLeft;
 
+    hudNextLabel = TextComponent(text: 'NEXT', textRenderer: valuePaint)
+      ..anchor = Anchor.topLeft;
+    hudNext = NextTetrominoPreview(
+      boxSize: Vector2(100, 100),
+      padding: 6,
+      cellGap: 1,
+    );
+
     await addAll([
       hudTitle,
       ...hintRows,
@@ -122,6 +137,8 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
       hudScore,
       hudLines,
       hudLevel,
+      hudNextLabel,
+      hudNext,
     ]);
 
     _relayout();
@@ -161,7 +178,9 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     final leftPanelWidth = leftPanelMaxWidth;
     final leftInset = leftPadding + leftPanelWidth + blockGap;
 
+    final rightBlockGap = 8.0;
     final rightPanelWidth = [
+      hudNext.size.x,
       hudScore.size.x,
       hudLines.size.x,
       hudLevel.size.x,
@@ -172,6 +191,11 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     final rightX = viewportSize.x - rightPadding - rightPanelWidth;
     final rightY = (viewportSize.y - rightPanelHeight) / 2;
 
+    hudNextLabel.position = Vector2(rightX, topInset);
+    hudNext.position = Vector2(
+      rightX + (rightPanelWidth - hudNext.size.x) / 2,
+      hudNextLabel.position.y + hudNextLabel.size.y + gap,
+    );
     hudScore.position = Vector2(rightX, rightY);
     hudLines.position = Vector2(
       rightX,
@@ -203,7 +227,7 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     final nextLines = 'Lines: $lines';
     final nextLevel = 'Level: $level';
     bool changed = false;
-    
+
     if (hudScore.text != nextScore) {
       hudScore.text = nextScore;
       changed = true;
@@ -218,8 +242,14 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     }
 
     if (changed) {
-      _relayout(); // ← добавили
+      _relayout();
     }
+  }
+
+  void setNextType(TetrominoType type) {
+    if (_prevNext == type) return;
+    _prevNext = type;
+    hudNext.setType(type);
   }
 
   void requestRelayout() => _relayout();
