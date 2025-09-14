@@ -4,12 +4,10 @@ import 'package:flutter/painting.dart';
 import 'package:tetris/components/hud_hint_row.dart';
 import 'package:tetris/components/next_tetromino_preview.dart';
 import 'package:tetris/game/tetris_game.dart';
-import 'package:tetris/model/tetromino.dart';
+import 'package:tetris/model/models.dart';
+import 'package:tetris/utils/function_aliases.dart';
 
 class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
-  final void Function(double topInset, double leftInset, double rightInset)?
-  onInsetsChanged;
-
   final double leftPadding;
   final double rightPadding;
   final double topPadding;
@@ -26,46 +24,21 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
 
   late final NextTetrominoPreview hudNext;
   late final TextComponent hudNextLabel;
-  
+
+  final void Function(double topInset, double leftInset, double rightInset)?
+  onInsetsChanged;
+  final TetrominoColorResolver tetrominoColorOf;
+
   TetrominoType? _prevNext;
 
-  final TextPaint hintKeysPaint = TextPaint(
-    style: const TextStyle(
-      color: Color(0xFF111111),
-      fontSize: 18,
-      fontWeight: FontWeight.w700, // жирные клавиши
-    ),
-  );
-  final TextPaint hintTextPaint = TextPaint(
-    style: const TextStyle(
-      color: Color(0xFF111111),
-      fontSize: 18,
-      fontWeight: FontWeight.w400, // обычный текст
-    ),
-  );
-  final TextPaint titlePaint = TextPaint(
-    style: TextStyle(
-      color: Color(0xFF111111),
-      fontSize: 24,
-      fontWeight: FontWeight.w700,
-    ),
-  );
-  final TextPaint hintPaint = TextPaint(
-    style: TextStyle(
-      color: Color(0xFF111111),
-      fontSize: 16,
-      fontWeight: FontWeight.w400,
-    ),
-  );
-  final TextPaint valuePaint = TextPaint(
-    style: const TextStyle(
-      color: Color(0xFF111111),
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-    ),
-  );
+  late TextPaint hintKeysPaint;
+  late TextPaint hintTextPaint;
+  late TextPaint titlePaint;
+  late TextPaint hintPaint;
+  late TextPaint valuePaint;
 
   HudComponent({
+    required this.tetrominoColorOf,
     this.onInsetsChanged,
     this.leftPadding = 12,
     this.rightPadding = 12,
@@ -81,6 +54,45 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    final primary = game.palette.hudTextPrimary;
+    final secondary = game.palette.hudTextSecondary;
+
+    hintKeysPaint = TextPaint(
+      style: TextStyle(
+        color: primary,
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    hintTextPaint = TextPaint(
+      style: TextStyle(
+        color: secondary,
+        fontSize: 18,
+        fontWeight: FontWeight.w400,
+      ),
+    );
+    titlePaint = TextPaint(
+      style: TextStyle(
+        color: primary,
+        fontSize: 24,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    hintPaint = TextPaint(
+      style: TextStyle(
+        color: secondary,
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+      ),
+    );
+    valuePaint = TextPaint(
+      style: TextStyle(
+        color: primary,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+      ),
+    );
 
     hudTitle = TextComponent(text: 'TETRIS', textRenderer: titlePaint)
       ..anchor = Anchor.topLeft;
@@ -128,6 +140,7 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
       boxSize: Vector2(100, 100),
       padding: 6,
       cellGap: 1,
+      colorOfTetromino: tetrominoColorOf,
     );
 
     await addAll([
@@ -178,7 +191,6 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     final leftPanelWidth = leftPanelMaxWidth;
     final leftInset = leftPadding + leftPanelWidth + blockGap;
 
-    final rightBlockGap = 8.0;
     final rightPanelWidth = [
       hudNext.size.x,
       hudScore.size.x,

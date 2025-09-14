@@ -3,8 +3,8 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:tetris/components/board_effects.dart';
 import 'package:tetris/game/tetris_game.dart';
-import 'package:tetris/model/board_model.dart';
-import 'package:tetris/model/tetromino.dart';
+import 'package:tetris/model/models.dart';
+import 'package:tetris/utils/function_aliases.dart';
 
 class BoardComponent extends PositionComponent
     with HasGameReference<TetrisGame> {
@@ -12,6 +12,8 @@ class BoardComponent extends PositionComponent
   static const cols = 10;
 
   late final BoardEffects fx;
+
+  final TetrominoColorResolver colorOfTetromino;
 
   final BoardModel model;
   final Map<int, Paint> _paintCache = {};
@@ -23,8 +25,19 @@ class BoardComponent extends PositionComponent
 
   double cell = 24.0;
 
+  final Paint gridPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1; // толщина сетки (при желании вынести в метрики/тему)
+
+  final Paint borderPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2; // толщина рамки
+
+  late Paint _boardFillPaint;
+
   BoardComponent({
     required this.model,
+    required this.colorOfTetromino,
     this.topInset = 72,
     this.leftInset = 16,
     this.rightInset = 16,
@@ -40,6 +53,15 @@ class BoardComponent extends PositionComponent
 
     fx = BoardEffects();
     await add(fx);
+
+    final gamePalette = game.palette;
+
+    _boardFillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = gamePalette.boardBackground;
+
+    gridPaint.color = gamePalette.boardGrid;
+    borderPaint.color = gamePalette.boardBorder;
 
     _relayout();
   }
@@ -75,23 +97,12 @@ class BoardComponent extends PositionComponent
     position.setValues(offsetX, offsetY);
   }
 
-  final gridPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 1;
-  final borderPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2;
-
-  final piecePaint = Paint()
-    ..style = PaintingStyle.fill
-    ..color = const Color(0xFF42A5F5);
-
-  Paint _paintFor(int colorValue) {
+  Paint _paintForColorValue(int argb) {
     return _paintCache.putIfAbsent(
-      colorValue,
+      argb,
       () => Paint()
         ..style = PaintingStyle.fill
-        ..color = Color(colorValue),
+        ..color = Color(argb),
     );
   }
 
@@ -100,13 +111,7 @@ class BoardComponent extends PositionComponent
     super.render(canvas);
 
     final halfBorder = borderPaint.strokeWidth / 2;
-    final rect = Rect.fromLTWH(
-      halfBorder,
-      halfBorder,
-      size.x - borderPaint.strokeWidth,
-      size.y - borderPaint.strokeWidth,
-    );
-    canvas.drawRect(rect, borderPaint);
+    canvas.drawRect(Offset.zero & Size(size.x, size.y), _boardFillPaint);
 
     final halfGrid = gridPaint.strokeWidth / 2;
     for (var c = 1; c < model.cols; c++) {
@@ -129,19 +134,28 @@ class BoardComponent extends PositionComponent
     for (var y = 0; y < model.rows; y++) {
       for (var x = 0; x < model.cols; x++) {
         if (model.cells[y][x] != 0) {
-          final colorValue = model.cells[y][x];
+          final int code = model.cells[y][x];
           final cellRect = Rect.fromLTWH(
             halfBorder + x * cell + 1,
             halfBorder + y * cell + 1,
             cell - 2,
             cell - 2,
           );
-          canvas.drawRect(cellRect, _paintFor(colorValue));
+          if (code != 0) {
+            final int code = model.cells[y][x];
+            final type = TetrominoType.values[code - 1];
+            final colorValue = colorOfTetromino(type);
+            canvas.drawRect(cellRect, _paintForColorValue(colorValue));
+          }
         }
       }
     }
 
     if (model.active != null && !model.isGameOver) {
+      final TetrominoType activeType = model.active!.type;
+      final int activeColorValue = colorOfTetromino(activeType);
+      final Paint activePaint = _paintForColorValue(activeColorValue);
+
       for (final c in model.active!.blocksAbsolute()) {
         final rect = Rect.fromLTWH(
           halfBorder + c.x * cell + 2,
@@ -149,19 +163,28 @@ class BoardComponent extends PositionComponent
           cell - 4,
           cell - 4,
         );
-        canvas.drawRect(rect, piecePaint);
+        canvas.drawRect(rect, activePaint);
       }
     }
+
+    final frameRect = Rect.fromLTWH(
+      halfBorder,
+      halfBorder,
+      size.x - borderPaint.strokeWidth,
+      size.y - borderPaint.strokeWidth,
+    );
+    canvas.drawRect(frameRect, borderPaint);
   }
 
   void flashRows(List<int> rows) {
     fx.flashRows(rows: rows, cell: cell, width: size.x);
   }
 
-  void landingBurst(Iterable<Cell> cells, int color) {
+  void landingBurst(Iterable<Cell> cells, TetrominoType type) {
     final centers = cells.map(
       (c) => Vector2((c.x + 0.5) * cell, (c.y + 0.5) * cell),
     );
-    fx.spawnLandingParticles(worldCenters: centers, colorValue: color);
+    final colorValue = colorOfTetromino(type);
+    fx.spawnLandingParticles(worldCenters: centers, colorValue: colorValue);
   }
 }

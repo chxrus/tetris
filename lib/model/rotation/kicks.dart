@@ -1,7 +1,8 @@
-import 'package:tetris/model/tetromino.dart';
+import 'package:tetris/model/tetromino_type.dart';
 
 class RotationOffset {
-  final int dx, dy;
+  final int dx;
+  final int dy;
   const RotationOffset(this.dx, this.dy);
 }
 
@@ -32,6 +33,7 @@ const Map<int, List<RotationOffset>> _kicksI = {
 };
 
 List<RotationOffset> srsKicks(TetrominoType type, int from, int to) {
-  final map = (type == TetrominoType.I) ? _kicksI : _kicksJLSTZ;
+  final Map<int, List<RotationOffset>> map =
+      (type == TetrominoType.I) ? _kicksI : _kicksJLSTZ;
   return map[_key(from, to)] ?? const [RotationOffset(0, 0)];
 }

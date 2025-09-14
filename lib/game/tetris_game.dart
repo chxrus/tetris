@@ -3,20 +3,26 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:tetris/components/board_component.dart';
-import 'package:tetris/components/hud_component.dart';
+import 'package:tetris/components/components.dart';
 import 'package:tetris/game/timing.dart';
-import 'package:tetris/model/board_model.dart';
-import 'package:tetris/model/tetromino.dart';
+import 'package:tetris/model/models.dart';
+import 'package:tetris/theme/game_palette.dart';
 import 'package:tetris/utils/set_extension.dart';
+import 'package:tetris/utils/time_utils.dart';
 
 class TetrisGame extends FlameGame with KeyboardEvents {
   static const String pauseOverlayId = 'PauseOverlay';
   static const String gameOverOverlayId = 'GameOverOverlay';
 
-  late final HudComponent hud;
+  final GamePalette palette;
+
+  TetrisGame({GamePalette? palette})
+        : palette = palette ?? GamePalette.darkDefault(),
+          super(camera: CameraComponent()..viewfinder.anchor = Anchor.topLeft);
+
   late BoardModel model;
-  late BoardComponent boardComponent;
+  late HudComponent hud;
+  late BoardComponent board;
 
   bool _gameOverShown = false;
 
@@ -32,32 +38,30 @@ class TetrisGame extends FlameGame with KeyboardEvents {
 
   TetrominoType? _cachedNext;
 
+  int _colorOfTetromino(TetrominoType type) => palette.colorOfTetromino(type);
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
     model = BoardModel(rows: 20, cols: 10);
-    boardComponent = BoardComponent(model: model);
-    await world.add(boardComponent);
+    board = BoardComponent(colorOfTetromino: _colorOfTetromino, model: model);
+    await world.add(board);
 
     hud = HudComponent(
+      tetrominoColorOf: _colorOfTetromino,
       onInsetsChanged: (double top, double left, double right) {
-        boardComponent
+        board
           ..topInset = top
           ..leftInset = left
           ..rightInset = right;
-        boardComponent.onGameResize(boardComponent.size);
+        board.onGameResize(board.size);
       },
     );
     await camera.viewport.add(hud);
 
-    hud.setNextType(model.nextType);
-
-    fallTimer = Timer(
-      secs(timing.baseFall),
-      onTick: _handleFallTick,
-      repeat: true,
-    )..start();
+    fallTimer = Timer(secs(timing.baseFall), onTick: _onFallTick, repeat: true)
+      ..start();
 
     lockTimer = Timer(
       secs(timing.lockDelay),
@@ -97,7 +101,7 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     hud.setNextType(_cachedNext!);
   }
 
-  void _handleFallTick() {
+  void _onFallTick() {
     if (model.isGameOver) return;
 
     final moved = model.fallOneCell();
@@ -138,12 +142,15 @@ class TetrisGame extends FlameGame with KeyboardEvents {
 
     final cleared = model.takeClearedRows();
     if (cleared.isNotEmpty) {
-      boardComponent.flashRows(cleared);
+      board.flashRows(cleared);
     }
 
     final landedCells = model.takeLastLockedCells();
     if (landedCells.isNotEmpty) {
-      boardComponent.landingBurst(landedCells, model.lastLockColor);
+        final lastType = model.lastLockType;
+        if (lastType != null) {
+          board.landingBurst(landedCells, lastType);
+        }
     }
 
     hud.setSoftDrop(softDrop);
@@ -289,26 +296,29 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   void togglePause() => paused ? resumeGame() : pauseGame();
 
   Future<void> restartGame() async {
-    final t = boardComponent.topInset;
-    final l = boardComponent.leftInset;
-    final r = boardComponent.rightInset;
-    final b = boardComponent.bottomInset;
+    final double prevTopInset = board.topInset;
+    final double prevLeftInset = board.leftInset;
+    final double prevRightInset = board.rightInset;
+    final double prevBottomInset = board.bottomInset;
 
-    boardComponent.removeFromParent();
+    board.removeFromParent();
 
     model = BoardModel(rows: 20, cols: 10);
 
-    final newBoard = BoardComponent(
+    final BoardComponent newBoard = BoardComponent(
+      colorOfTetromino: _colorOfTetromino,
       model: model,
-      topInset: t,
-      leftInset: l,
-      rightInset: r,
-      bottomInset: b,
+      topInset: prevTopInset,
+      leftInset: prevLeftInset,
+      rightInset: prevRightInset,
+      bottomInset: prevBottomInset,
     );
-    boardComponent = newBoard;
+    board = newBoard;
     await world.add(newBoard);
 
+    horizontalDirection = 0;
     softDrop = false;
+
     final period = model.fallPeriodForLevel(timing.baseFall);
     fallTimer
       ..limit = secs(period)
@@ -316,16 +326,25 @@ class TetrisGame extends FlameGame with KeyboardEvents {
       ..start();
 
     lockTimer.stop();
+    delayedAutoShiftTimer.stop();
+    autoRepeatTimer.stop();
 
     hud.setSoftDrop(false);
     hud.setScoreLinesLevel(score: 0, lines: 0, level: 1);
+
+    _cachedNext = model.nextType;
+    hud.setNextType(_cachedNext!);
+
     hud.requestRelayout();
 
     overlays.remove(gameOverOverlayId);
     _gameOverShown = false;
 
-    if (paused) resumeGame();
-    if (!paused) resumeEngine();
+    if (paused) {
+      resumeGame();
+    } else {
+      resumeEngine();
+    }
   }
 
   void _setSoftDrop(bool enabled) {
@@ -359,17 +378,13 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     autoRepeatTimer.stop();
   }
 
-  void _stepOnceHorizontally(int dir) {
-    final moved = model.moveActive(dir, 0);
+  void _stepOnceHorizontally(int direction) {
+    final moved = model.moveActive(direction, 0);
     if (moved && !model.isGrounded()) {
       lockTimer.stop();
     }
   }
 
-  double secs(Duration d) => d.inMicroseconds / 1e6;
-  Duration div(Duration d, double k) =>
-      Duration(microseconds: (d.inMicroseconds / k).round());
-
   @override
-  Color backgroundColor() => Colors.white;
+  Color backgroundColor() => palette.gameBackground;
 }

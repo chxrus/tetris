@@ -1,69 +1,50 @@
-import 'dart:collection';
 import 'dart:math' as math;
-import 'package:tetris/model/tetromino.dart';
-import 'package:tetris/model/rotation/kicks.dart' as kicks;
+
+import 'cell.dart';
+import 'tetromino.dart';
+import 'tetromino_type.dart';
+import 'rotation/kicks.dart' as kicks;
+import 'score_tracker.dart';
+import 'seven_bag.dart';
 
 class BoardModel {
   final int rows;
   final int cols;
 
-  int score = 0;
-  int lines = 0;
-  int level = 1;
-
   late final List<List<int>> cells;
+  Tetromino? active;
+  bool isGameOver = false;
+
+  final SevenBag _sevenBag;
 
   List<int> _clearedRows = [];
   List<Cell> _lastLockedCells = [];
-  int _lastLockColor = 0;
 
-  // очки за 1-4 линии (Guideline * множитель уровня)
-  static const List<int> _lineScores = [0, 100, 300, 500, 800];
+  final ScoreTracker _score = ScoreTracker();
+  int get score => _score.score;
+  int get lines => _score.lines;
+  int get level => _score.level;
 
-  List<TetrominoType> _bag = [];
+  TetrominoType get nextType => _sevenBag.nextType;
 
-  void _refillBag() {
-    _bag = TetrominoType.values.toList()..shuffle(_rng);
-  }
+  TetrominoType? _lastLockType;
+  TetrominoType? get lastLockType => _lastLockType;
 
-  TetrominoType _drawFromBag() {
-    if (_bag.isEmpty) _refillBag();
-    return _bag.removeAt(0);
-  }
-
-  final Queue<TetrominoType> _next = Queue<TetrominoType>();
-  void _ensureNextFilled() {
-    while (_next.isEmpty) {
-      _next.add(_drawFromBag());
-    }
-  }
-
-  final _rng = math.Random();
-
-  TetrominoType get nextType => _next.first;
-  Tetromino? active;
-
-  bool isGameOver = false;
-
-  BoardModel({required this.rows, required this.cols}) {
+  BoardModel({required this.rows, required this.cols, math.Random? random})
+    : _sevenBag = SevenBag(random: random) {
     cells = List.generate(rows, (_) => List.filled(cols, 0));
-    _refillBag();
-    _ensureNextFilled();
     _spawnNew();
   }
 
   void _spawnNew() {
-    final type = _next.removeFirst();
-    _ensureNextFilled();
-    final colorValue = Tetromino.colorOf(type);
+    final TetrominoType pieceType = _sevenBag.takeNext();
 
-    final tetromino = Tetromino(
-      type: type,
+    final Tetromino tetromino = Tetromino.spawn(
+      type: pieceType,
       originX: cols ~/ 2,
       originY: 0,
-      rotationIndex: 0,
-      colorValue: colorValue,
     );
+
     if (_canPlace(tetromino)) {
       active = tetromino;
     } else {
@@ -75,8 +56,8 @@ class BoardModel {
   bool _inside(int x, int y) => x >= 0 && x < cols && y >= 0 && y < rows;
   bool _emptyAt(int x, int y) => _inside(x, y) && cells[y][x] == 0;
 
-  bool _canPlace(Tetromino t) {
-    for (final cell in t.blocksAbsolute()) {
+  bool _canPlace(Tetromino tetromino) {
+    for (final Cell cell in tetromino.blocksAbsolute()) {
       if (!_emptyAt(cell.x, cell.y)) return false;
     }
     return true;
@@ -84,7 +65,7 @@ class BoardModel {
 
   bool moveActive(int dx, int dy) {
     if (active == null) return false;
-    final candidate = active!.shift(dx, dy);
+    final Tetromino candidate = active!.shift(dx, dy);
     if (_canPlace(candidate)) {
       active = candidate;
       return true;
@@ -92,19 +73,31 @@ class BoardModel {
     return false;
   }
 
+  bool canMoveActive(int dx, int dy) {
+    if (active == null) return false;
+    final Tetromino candidate = active!.shift(dx, dy);
+    return _canPlace(candidate);
+  }
+
+  bool canMoveDown() => active != null && canMoveActive(0, 1);
   bool isGrounded() => active != null && !canMoveActive(0, 1);
+
   bool rotateActiveClockwise() => _rotateActive(1);
   bool rotateActiveCounterclockwise() => _rotateActive(-1);
 
-  bool _rotateActive(int dir) {
+  bool _rotateActive(int direction) {
     if (active == null) return false;
 
-    final from = active!.rotationIndex & 3;
-    final to = (from + (dir > 0 ? 1 : 3)) & 3;
-    final rotated = active!.copyWith(rotationIndex: to);
+    final int from = active!.rotationIndex & 3;
+    final int to = (from + (direction > 0 ? 1 : 3)) & 3;
+    final Tetromino rotated = active!.copyWith(rotationIndex: to);
 
-    for (final off in kicks.srsKicks(active!.type, from, to)) {
-      final candidate = rotated.shift(off.dx, off.dy);
+    for (final kicks.RotationOffset offset in kicks.srsKicks(
+      active!.type,
+      from,
+      to,
+    )) {
+      final Tetromino candidate = rotated.shift(offset.dx, offset.dy);
       if (_canPlace(candidate)) {
         active = candidate;
         return true;
@@ -113,13 +106,6 @@ class BoardModel {
     return false;
   }
 
-  bool canMoveActive(int dx, int dy) {
-    if (active == null) return false;
-    final candidate = active!.shift(dx, dy);
-    return _canPlace(candidate);
-  }
-
-  bool canMoveDown() => active != null && canMoveActive(0, 1);
   bool fallOneCell() => active != null && moveActive(0, 1);
 
   void hardDropAndLock() {
@@ -132,73 +118,67 @@ class BoardModel {
 
   void _lockAtCurrentAndSpawn() {
     if (active == null) return;
-    final placed = active!.blocksAbsolute();
-    final color = active!.colorValue;
 
-    for (final c in placed) {
-      if (_inside(c.x, c.y)) cells[c.y][c.x] = color;
+    final List<Cell> placedCells = active!.blocksAbsolute();
+    final TetrominoType type = active!.type;
+    final int cellCode = type.index + 1;
+
+    for (final Cell cell in placedCells) {
+      if (_inside(cell.x, cell.y)) {
+        cells[cell.y][cell.x] = cellCode;
+      }
     }
+    _lastLockType = type;
 
-    final clearedRows = _clearFullLines();
+    final List<int> clearedRows = _clearFullLines();
+
     _clearedRows = clearedRows;
+    _lastLockedCells = placedCells;
+    _lastLockType = type;
 
-    _lastLockedCells = placed;
-    _lastLockColor = color;
+    _score.applyClear(clearedRows.length);
 
-    _applyScoring(clearedRows.length);
     _spawnNew();
   }
 
   List<int> _clearFullLines() {
-    final rowsToKeep = <List<int>>[];
-    final cleared = <int>[];
+    final List<List<int>> rowsToKeep = <List<int>>[];
+    final List<int> cleared = <int>[];
 
-    for (var y = 0; y < rows; y++) {
-      final full = cells[y].every((v) => v != 0);
-      if (full) {
+    for (int y = 0; y < rows; y++) {
+      final bool isFull = cells[y].every((int cellValue) => cellValue != 0);
+      if (isFull) {
         cleared.add(y);
       } else {
         rowsToKeep.add(cells[y]);
       }
     }
 
-    for (var i = 0; i < cleared.length; i++) {
+    for (int i = 0; i < cleared.length; i++) {
       rowsToKeep.insert(0, List.filled(cols, 0));
     }
-    for (var y = 0; y < rows; y++) {
+    for (int y = 0; y < rows; y++) {
       cells[y] = rowsToKeep[y];
     }
     return cleared;
   }
 
-  void _applyScoring(int cleared) {
-    if (cleared <= 0) return;
-    score += _lineScores[cleared] * level;
-    lines += cleared;
-    final newLevel = (lines ~/ 10) + 1;
-    if (newLevel > level) {
-      level = newLevel;
-    }
-  }
-
-  Duration fallPeriodForLevel(Duration baseFall) {
-    const decayPerLevel = 0.92;
-    final factor = math.pow(decayPerLevel, (level - 1)).toDouble();
-    final micros = (baseFall.inMicroseconds * factor).round();
-    return Duration(microseconds: micros);
-  }
-
   List<int> takeClearedRows() {
-    final out = List<int>.from(_clearedRows);
+    final List<int> output = List<int>.from(_clearedRows);
     _clearedRows.clear();
-    return out;
+    return output;
   }
 
   List<Cell> takeLastLockedCells() {
-    final out = List<Cell>.from(_lastLockedCells);
+    final List<Cell> output = List<Cell>.from(_lastLockedCells);
     _lastLockedCells.clear();
-    return out;
+    return output;
   }
 
-  int get lastLockColor => _lastLockColor;
+  Duration fallPeriodForLevel(Duration baseFall) {
+    const double decayPerLevel = 0.92;
+    final double factor = math.pow(decayPerLevel, (level - 1)).toDouble();
+    final int micros = (baseFall.inMicroseconds * factor).round();
+    return Duration(microseconds: micros);
+  }
 }

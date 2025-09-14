@@ -1,15 +1,10 @@
 import 'package:flutter/foundation.dart';
-
-class Cell {
-  final int x, y;
-  const Cell(this.x, this.y);
-}
-
-enum TetrominoType { I, O, T, J, L, S, Z }
+import 'package:tetris/model/tetromino_type.dart';
+import 'package:tetris/model/cell.dart';
 
 @immutable
 class Tetromino {
-  static const Map<TetrominoType, int> defaultPalette = {
+  static const Map<TetrominoType, int> palette = {
     TetrominoType.I: 0xFF00BCD4, // cyan
     TetrominoType.J: 0xFF1E88E5, // blue
     TetrominoType.L: 0xFFF57C00, // orange
@@ -19,28 +14,48 @@ class Tetromino {
     TetrominoType.Z: 0xFFE53935, // red
   };
 
-  static int colorOf(TetrominoType type) => defaultPalette[type]!;
+  static int colorOf(TetrominoType type) => palette[type]!;
 
   final TetrominoType type;
-  final int rotationIndex; // 0..3
   final int originX;
   final int originY;
+  final int rotationIndex;
   final int colorValue;
 
   const Tetromino({
     required this.type,
     required this.originX,
     required this.originY,
-    this.rotationIndex = 0,
+    required this.rotationIndex,
     required this.colorValue,
   });
 
-  Tetromino copyWith({int? originX, int? originY, int? rotationIndex, int? colorValue}) {
+  factory Tetromino.spawn({
+    required TetrominoType type,
+    required int originX,
+    required int originY,
+  }) {
     return Tetromino(
       type: type,
+      originX: originX,
+      originY: originY,
+      rotationIndex: 0,
+      colorValue: colorOf(type),
+    );
+  }
+
+  Tetromino copyWith({
+    TetrominoType? type,
+    int? originX,
+    int? originY,
+    int? rotationIndex,
+    int? colorValue,
+  }) {
+    return Tetromino(
+      type: type ?? this.type,
       originX: originX ?? this.originX,
       originY: originY ?? this.originY,
-      rotationIndex: rotationIndex ?? this.rotationIndex,
+      rotationIndex: (rotationIndex ?? this.rotationIndex) & 3,
       colorValue: colorValue ?? this.colorValue,
     );
   }
@@ -90,21 +105,22 @@ class Tetromino {
     ],
   };
 
-  List<Cell> blocksRelative([int? rot]) {
-    final r = (rot ?? rotationIndex) & 3;
+  List<Cell> blocksRelative([int? rotation]) {
+    final int r = (rotation ?? rotationIndex) & 3;
     return _shapes[type]![r];
   }
 
   List<Cell> blocksAbsolute() {
     final rel = blocksRelative();
-    return rel.map((c) => Cell(originX + c.x, originY + c.y)).toList();
+    return <Cell>[
+      Cell(originX + rel[0].x, originY + rel[0].y),
+      Cell(originX + rel[1].x, originY + rel[1].y),
+      Cell(originX + rel[2].x, originY + rel[2].y),
+      Cell(originX + rel[3].x, originY + rel[3].y),
+    ];
   }
 
   Tetromino rotatedClockwise() => copyWith(rotationIndex: rotationIndex + 1);
-
-  Tetromino rotatedCounterclockwise() =>
-      copyWith(rotationIndex: rotationIndex + 3);
-
-  Tetromino shift(int dx, int dy) =>
-      copyWith(originX: originX + dx, originY: originY + dy);
+  Tetromino rotatedCounterclockwise() => copyWith(rotationIndex: rotationIndex + 3);
+  Tetromino shift(int dx, int dy) => copyWith(originX: originX + dx, originY: originY + dy);
 }
