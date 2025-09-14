@@ -202,9 +202,24 @@ class HudComponent extends PositionComponent with HasGameReference<TetrisGame> {
     final nextScore = 'Score: $score';
     final nextLines = 'Lines: $lines';
     final nextLevel = 'Level: $level';
-    if (hudScore.text != nextScore) hudScore.text = nextScore;
-    if (hudLines.text != nextLines) hudLines.text = nextLines;
-    if (hudLevel.text != nextLevel) hudLevel.text = nextLevel;
+    bool changed = false;
+    
+    if (hudScore.text != nextScore) {
+      hudScore.text = nextScore;
+      changed = true;
+    }
+    if (hudLines.text != nextLines) {
+      hudLines.text = nextLines;
+      changed = true;
+    }
+    if (hudLevel.text != nextLevel) {
+      hudLevel.text = nextLevel;
+      changed = true;
+    }
+
+    if (changed) {
+      _relayout(); // ← добавили
+    }
   }
 
   void requestRelayout() => _relayout();
