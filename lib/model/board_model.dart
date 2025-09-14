@@ -29,6 +29,17 @@ class BoardModel {
     TetrominoType.Z: 0xFFE53935, // red
   };
 
+  List<TetrominoType> _bag = [];
+
+  void _refillBag() {
+    _bag = TetrominoType.values.toList()..shuffle(_rng);
+  }
+
+  TetrominoType _drawFromBag() {
+    if (_bag.isEmpty) _refillBag();
+    return _bag.removeAt(0);
+  }
+
   final _rng = math.Random();
   Tetromino? active;
   bool isGameOver = false;
@@ -39,8 +50,7 @@ class BoardModel {
   }
 
   void _spawnNew() {
-    final type =
-        TetrominoType.values[_rng.nextInt(TetrominoType.values.length)];
+    final type = _drawFromBag();
     final colorValue = _typeColor[type]!;
     final tetromino = Tetromino(
       type: type,
