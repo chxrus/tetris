@@ -38,15 +38,21 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     await world.add(boardComponent);
 
     hud = HudComponent(
-      onTopInsetChanged: (double topInset) {
-        boardComponent.topInset = topInset;
+      onInsetsChanged: (double top, double left, double right) {
+        boardComponent
+          ..topInset = top
+          ..leftInset = left
+          ..rightInset = right;
         boardComponent.onGameResize(boardComponent.size);
       },
     );
     await camera.viewport.add(hud);
 
-    fallTimer = Timer(secs(timing.baseFall), onTick: _handleFallTick, repeat: true)
-      ..start();
+    fallTimer = Timer(
+      secs(timing.baseFall),
+      onTick: _handleFallTick,
+      repeat: true,
+    )..start();
 
     lockTimer = Timer(
       secs(timing.lockDelay),
@@ -259,9 +265,10 @@ class TetrisGame extends FlameGame with KeyboardEvents {
   void togglePause() => paused ? resumeGame() : pauseGame();
 
   Future<void> restartGame() async {
-    final currentTopInset = boardComponent.topInset;
-    final currentSideInset = boardComponent.sideInset;
-    final currentBottomInset = boardComponent.bottomInset;
+    final t = boardComponent.topInset;
+    final l = boardComponent.leftInset;
+    final r = boardComponent.rightInset;
+    final b = boardComponent.bottomInset;
 
     boardComponent.removeFromParent();
 
@@ -269,9 +276,10 @@ class TetrisGame extends FlameGame with KeyboardEvents {
 
     final newBoard = BoardComponent(
       model: model,
-      topInset: currentTopInset,
-      sideInset: currentSideInset,
-      bottomInset: currentBottomInset,
+      topInset: t,
+      leftInset: l,
+      rightInset: r,
+      bottomInset: b,
     );
     boardComponent = newBoard;
     await world.add(newBoard);

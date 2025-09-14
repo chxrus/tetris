@@ -13,7 +13,8 @@ class BoardComponent extends PositionComponent
   final Map<int, Paint> _paintCache = {};
 
   double topInset;
-  double sideInset;
+  double leftInset;
+  double rightInset;
   double bottomInset;
 
   double cell = 24.0;
@@ -21,7 +22,8 @@ class BoardComponent extends PositionComponent
   BoardComponent({
     required this.model,
     this.topInset = 72,
-    this.sideInset = 16,
+    this.leftInset = 16,
+    this.rightInset = 16,
     this.bottomInset = 16,
   }) {
     anchor = Anchor.topLeft;
@@ -43,8 +45,8 @@ class BoardComponent extends PositionComponent
   void _relayout() {
     final viewportSize = game.camera.viewport.size;
 
-    final contentW = viewportSize.x - sideInset * 2;
-    final contentH = viewportSize.y - topInset - bottomInset;
+    final contentW = (viewportSize.x - leftInset - rightInset).clamp(1, double.infinity);
+    final contentH = (viewportSize.y - topInset - bottomInset).clamp(1, double.infinity);
 
     cell = math
         .min(contentW / model.cols, contentH / model.rows)
