@@ -1,13 +1,17 @@
-import 'dart:ui';
 import 'dart:math' as math;
 import 'package:flame/components.dart';
+import 'package:flutter/material.dart';
+import 'package:tetris/components/board_effects.dart';
 import 'package:tetris/game/tetris_game.dart';
 import 'package:tetris/model/board_model.dart';
+import 'package:tetris/model/tetromino.dart';
 
 class BoardComponent extends PositionComponent
     with HasGameReference<TetrisGame> {
   static const rows = 20;
   static const cols = 10;
+
+  late final BoardEffects fx;
 
   final BoardModel model;
   final Map<int, Paint> _paintCache = {};
@@ -33,6 +37,10 @@ class BoardComponent extends PositionComponent
   @override
   Future<void> onLoad() async {
     super.onLoad();
+
+    fx = BoardEffects();
+    await add(fx);
+
     _relayout();
   }
 
@@ -45,8 +53,14 @@ class BoardComponent extends PositionComponent
   void _relayout() {
     final viewportSize = game.camera.viewport.size;
 
-    final contentW = (viewportSize.x - leftInset - rightInset).clamp(1, double.infinity);
-    final contentH = (viewportSize.y - topInset - bottomInset).clamp(1, double.infinity);
+    final contentW = (viewportSize.x - leftInset - rightInset).clamp(
+      1,
+      double.infinity,
+    );
+    final contentH = (viewportSize.y - topInset - bottomInset).clamp(
+      1,
+      double.infinity,
+    );
 
     cell = math
         .min(contentW / model.cols, contentH / model.rows)
@@ -138,5 +152,16 @@ class BoardComponent extends PositionComponent
         canvas.drawRect(rect, piecePaint);
       }
     }
+  }
+
+  void flashRows(List<int> rows) {
+    fx.flashRows(rows: rows, cell: cell, width: size.x);
+  }
+
+  void landingBurst(Iterable<Cell> cells, int color) {
+    final centers = cells.map(
+      (c) => Vector2((c.x + 0.5) * cell, (c.y + 0.5) * cell),
+    );
+    fx.spawnLandingParticles(worldCenters: centers, colorValue: color);
   }
 }

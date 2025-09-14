@@ -12,6 +12,10 @@ class BoardModel {
 
   late final List<List<int>> cells;
 
+  List<int> _clearedRows = [];
+  List<Cell> _lastLockedCells = [];
+  int _lastLockColor = 0;
+
   // очки за 1-4 линии (Guideline * множитель уровня)
   static const List<int> _lineScores = [0, 100, 300, 500, 800];
 
@@ -113,30 +117,41 @@ class BoardModel {
 
   void _lockAtCurrentAndSpawn() {
     if (active == null) return;
-    for (final c in active!.blocksAbsolute()) {
-      if (_inside(c.x, c.y)) cells[c.y][c.x] = active!.colorValue;
+    final placed = active!.blocksAbsolute();
+    final color = active!.colorValue;
+
+    for (final c in placed) {
+      if (_inside(c.x, c.y)) cells[c.y][c.x] = color;
     }
-    final cleared = _clearFullLines();
-    _applyScoring(cleared);
+
+    final clearedRows = _clearFullLines();
+    _clearedRows = clearedRows;
+
+    _lastLockedCells = placed;
+    _lastLockColor = color;
+
+    _applyScoring(clearedRows.length);
     _spawnNew();
   }
 
-  int _clearFullLines() {
-    final newRows = <List<int>>[];
-    int cleared = 0;
+  List<int> _clearFullLines() {
+    final rowsToKeep = <List<int>>[];
+    final cleared = <int>[];
+
     for (var y = 0; y < rows; y++) {
       final full = cells[y].every((v) => v != 0);
       if (full) {
-        cleared++;
+        cleared.add(y);
       } else {
-        newRows.add(cells[y]);
+        rowsToKeep.add(cells[y]);
       }
     }
-    for (var i = 0; i < cleared; i++) {
-      newRows.insert(0, List.filled(cols, 0));
+
+    for (var i = 0; i < cleared.length; i++) {
+      rowsToKeep.insert(0, List.filled(cols, 0));
     }
     for (var y = 0; y < rows; y++) {
-      cells[y] = newRows[y];
+      cells[y] = rowsToKeep[y];
     }
     return cleared;
   }
@@ -157,4 +172,18 @@ class BoardModel {
     final micros = (baseFall.inMicroseconds * factor).round();
     return Duration(microseconds: micros);
   }
+
+  List<int> takeClearedRows() {
+    final out = List<int>.from(_clearedRows);
+    _clearedRows.clear();
+    return out;
+  }
+
+  List<Cell> takeLastLockedCells() {
+    final out = List<Cell>.from(_lastLockedCells);
+    _lastLockedCells.clear();
+    return out;
+  }
+
+  int get lastLockColor => _lastLockColor;
 }

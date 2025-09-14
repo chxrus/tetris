@@ -128,6 +128,16 @@ class TetrisGame extends FlameGame with KeyboardEvents {
     delayedAutoShiftTimer.update(dt);
     autoRepeatTimer.update(dt);
 
+    final cleared = model.takeClearedRows();
+    if (cleared.isNotEmpty) {
+      boardComponent.flashRows(cleared);
+    }
+
+    final landedCells = model.takeLastLockedCells();
+    if (landedCells.isNotEmpty) {
+      boardComponent.landingBurst(landedCells, model.lastLockColor);
+    }
+
     hud.setSoftDrop(softDrop);
     hud.setScoreLinesLevel(
       score: model.score,
