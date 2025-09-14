@@ -13,6 +13,7 @@ import 'package:tetris/utils/time_utils.dart';
 class TetrisGame extends FlameGame with KeyboardEvents {
   static const String pauseOverlayId = 'PauseOverlay';
   static const String gameOverOverlayId = 'GameOverOverlay';
+  static const String themeOverlayId = 'ThemeOverlay';
 
   final GamePalette palette;
 

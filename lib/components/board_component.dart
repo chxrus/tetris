@@ -27,11 +27,11 @@ class BoardComponent extends PositionComponent
 
   final Paint gridPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 1; // толщина сетки (при желании вынести в метрики/тему)
+    ..strokeWidth = 1;
 
   final Paint borderPaint = Paint()
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 2; // толщина рамки
+    ..strokeWidth = 2;
 
   late Paint _boardFillPaint;
 

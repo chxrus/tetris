@@ -7,13 +7,18 @@ class PauseOverlay extends StatelessWidget {
     super.key,
     required this.onResume,
     required this.onRestart,
+    this.onOpenTheme,
   });
 
-  factory PauseOverlay.fromGame(TetrisGame game) =>
-      PauseOverlay(onResume: game.resumeGame, onRestart: game.restartGame);
+  factory PauseOverlay.fromGame(TetrisGame game) => PauseOverlay(
+    onResume: game.resumeGame,
+    onRestart: game.restartGame,
+    onOpenTheme: () => game.overlays.add(TetrisGame.themeOverlayId),
+  );
 
   final VoidCallback onResume;
   final VoidCallback onRestart;
+  final VoidCallback? onOpenTheme;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +31,8 @@ class PauseOverlay extends StatelessWidget {
         const SingleActivator(LogicalKeyboardKey.enter): onResume,
         const SingleActivator(LogicalKeyboardKey.numpadEnter): onResume,
         const SingleActivator(LogicalKeyboardKey.keyR): onRestart,
+        if (onOpenTheme != null)
+          const SingleActivator(LogicalKeyboardKey.keyT): onOpenTheme!,
       },
       child: Stack(
         children: [
@@ -33,10 +40,11 @@ class PauseOverlay extends StatelessWidget {
             child: GestureDetector(
               onTap: onResume,
               behavior: HitTestBehavior.opaque,
-              child: ColoredBox(color: (colorScheme.scrim).withValues(alpha: 0.6)),
+              child: ColoredBox(
+                color: colorScheme.scrim.withValues(alpha: 0.6),
+              ),
             ),
           ),
-
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 360),
@@ -67,6 +75,17 @@ class PauseOverlay extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
+
+                        if (onOpenTheme != null) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: onOpenTheme,
+                              child: const Text('Theme…'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
 
                         SizedBox(
                           width: double.infinity,
