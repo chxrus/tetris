@@ -1,16 +1,34 @@
-# tetris
+# Tetris (Flutter + Flame)
 
-A new Flutter project.
+A Tetris implementation built with **Flutter** and **Flame** (Dart).
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+* 7-bag piece generation
+* Scoring, lines, and levels (fall speed increases with level)
+* Soft (**S/↓**) and hard (**Space**) drop
+* HUD with hints and next-piece preview
+* Small visual effects (landing and line clear)
+* **Theme presets** (Dark / Light / Warm) — switch in Pause → **Theme…**
 
-A few resources to get you started if this is your first Flutter project:
+## Controls
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+* Move: **A** / **←** left, **D** / **→** right
+* Rotate: **Q** counter-clockwise, **E** / **↑** clockwise
+* Drop: **S** / **↓** soft, **Space** hard
+* Pause: **P** / **Esc**
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Run
+
+```bash
+flutter pub get
+flutter run -d macos   # or windows, linux, chrome, ios, android
+```
+
+## Tech
+
+* **Flutter** for the app and overlays
+* **Flame** for game loop, components, camera, timers
+* **Dart** for game logic
+
+> Timing parameters (fall speed, delays, etc.) can be tweaked in `game/` settings.
