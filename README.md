@@ -2,6 +2,8 @@
 
 A Tetris implementation built with **Flutter** and **Flame** (Dart).
 
+![Dark theme](docs/screenshot-dark.png)
+
 ## Features
 
 * 7-bag piece generation
