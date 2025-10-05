@@ -2,7 +2,9 @@
 
 A Tetris implementation built with **Flutter** and **Flame** (Dart).
 
-![Dark theme](docs/screenshot-dark.png)
+<p align="center">
+  <img src="docs/screenshot-dark.png" alt="Dark theme">
+</p>
 
 ## Features
 
